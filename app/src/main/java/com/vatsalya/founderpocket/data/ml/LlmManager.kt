@@ -15,17 +15,16 @@ import javax.inject.Singleton
 import kotlin.coroutines.resume
 
 /**
- * On-device LLM inference — Spike C (MediaPipe tasks-genai + Gemma 3 1B int4).
+ * On-device LLM inference — tasks-genai 0.10.35 + Gemma 3 1B int4.
  *
- * Model: gemma3-1B-it-int4.task (529 MB, bundled in app/src/main/assets/)
+ * API changes in 0.10.35 vs 0.10.14:
+ *  - setTopK/setTemperature/setRandomSeed moved to LlmInferenceSession (per-query)
+ *  - setMaxTopK replaces setTopK in LlmInferenceOptions
+ *  - setResultListener removed from options; listener passed to generateResponseAsync(prompt, listener)
+ *  - generateResponseAsync now returns ListenableFuture<String> (ignored; we use the callback)
  *
- * First-run behaviour: copies the .task file from assets → filesDir/models/
- * on the first generate() call. Subsequent runs skip the copy.
- * The copy takes ~30 s depending on storage speed — only happens once.
- *
- * VERSION NOTE: tasks-genai 0.10.14 is used. If Gemma 3 needs a newer version
- * after Spike C benchmarking, update mediapipeTasksGenai in libs.versions.toml.
- * The litert-lm library can replace tasks-genai with the same API surface.
+ * MODEL SETUP: gemma3-1B-it-int4.task (529 MB) is bundled in assets.
+ * First generate() call copies it to filesDir/models/ — takes ~30 s, only once.
  */
 @Singleton
 class LlmManager @Inject constructor(@ApplicationContext private val context: Context) {
@@ -36,24 +35,14 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
         const val MAX_TOKENS = 512
     }
 
-    /** Destination path that LlmInference reads from (needs a real file path, not an InputStream). */
     fun modelFile(): File = context.filesDir.resolve("models/$MODEL_FILENAME")
 
-    /**
-     * True if the model is ready to use:
-     *  - already copied to filesDir, OR
-     *  - present in assets (will be copied on first generate() call)
-     */
     val isAvailable: Boolean
         get() = modelFile().exists() || assetExists()
 
     private fun assetExists(): Boolean = runCatching {
         context.assets.open(MODEL_FILENAME).use { true }
     }.getOrDefault(false)
-
-    // Streaming callback state — one concurrent generate() call at a time
-    @Volatile private var activeCont: kotlinx.coroutines.CancellableContinuation<Unit>? = null
-    @Volatile private var activeOnToken: ((String) -> Unit)? = null
 
     private var llmInference: LlmInference? = null
     private val initMutex = Mutex()
@@ -63,9 +52,9 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
         if (!isAvailable) return@withLock false
 
         return@withLock withContext(Dispatchers.IO) {
-            // Copy from assets to filesDir if not already there
+            // One-time copy from assets → filesDir
             if (!modelFile().exists()) {
-                Log.i(TAG, "First-run: copying $MODEL_FILENAME from assets (~529 MB)…")
+                Log.i(TAG, "First run: copying $MODEL_FILENAME from assets (~529 MB)…")
                 modelFile().parentFile?.mkdirs()
                 runCatching {
                     context.assets.open(MODEL_FILENAME).use { src ->
@@ -78,23 +67,12 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
                 }
             }
 
-            // Load model into LlmInference
+            // Load model
             runCatching {
                 val options = LlmInference.LlmInferenceOptions.builder()
                     .setModelPath(modelFile().absolutePath)
                     .setMaxTokens(MAX_TOKENS)
-                    .setTopK(40)
-                    .setTemperature(0.8f)
-                    .setRandomSeed(101)
-                    .setResultListener { partial, done ->
-                        if (partial != null) activeOnToken?.invoke(partial)
-                        if (done) {
-                            val cont = activeCont
-                            activeCont = null
-                            activeOnToken = null
-                            cont?.resume(Unit)
-                        }
-                    }
+                    .setMaxTopK(40)           // model-level cap; per-query topK set in session
                     .build()
                 llmInference = LlmInference.createFromOptions(context, options)
                 Log.i(TAG, "Model ready.")
@@ -108,23 +86,24 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
 
     /**
      * Streams generated tokens into [onToken]. Suspends until generation completes.
-     * First call triggers the one-time asset-copy + model load (~30–60 s on first run).
+     *
+     * In tasks-genai 0.10.35 the ProgressListener is passed directly to
+     * generateResponseAsync(prompt, listener) — no options-level listener needed.
      */
     suspend fun generate(prompt: String, onToken: (String) -> Unit) {
         if (!ensureLoaded()) {
-            onToken("Model unavailable. Check logcat for LlmManager errors.")
+            onToken("Model unavailable. Check logcat (LlmManager) for errors.")
             return
         }
         withContext(Dispatchers.Default) {
             suspendCancellableCoroutine { cont ->
-                activeCont = cont
-                activeOnToken = onToken
                 try {
-                    llmInference!!.generateResponseAsync(prompt)
+                    llmInference!!.generateResponseAsync(prompt) { partial: String?, done: Boolean ->
+                        partial?.let { onToken(it) }
+                        if (done && cont.isActive) cont.resume(Unit)
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "generateResponseAsync failed", e)
-                    activeCont = null
-                    activeOnToken = null
                     onToken("\n[Error: ${e.message}]")
                     if (cont.isActive) cont.resume(Unit)
                 }
@@ -132,7 +111,6 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
         }
     }
 
-    /** Release loaded model to reclaim ~1 GB RAM; reloads lazily on next generate(). */
     fun release() {
         llmInference?.close()
         llmInference = null

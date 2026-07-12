@@ -39,7 +39,7 @@ kotlinxSerialization = "1.8.1"
 onnxRuntime = "1.22.0"
 
 # LLM inference — verify version against Spike C results; 0.10.14 supports Gemma 2, bump if Gemma 3 needs newer
-mediapipeTasksGenai = "0.10.14"
+mediapipeTasksGenai = "0.10.35"
 
 # Jetpack Security (Spike E — EncryptedFile)
 securityCrypto = "1.1.0-alpha06"
