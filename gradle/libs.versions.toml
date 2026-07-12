@@ -36,7 +36,7 @@ hiltNavigationCompose = "1.2.0"
 kotlinxSerialization = "1.8.1"
 
 # ML / embeddings
-onnxRuntime = "1.20.0"
+onnxRuntime = "1.22.0"
 
 # Location
 playServicesLocation = "21.3.0"
