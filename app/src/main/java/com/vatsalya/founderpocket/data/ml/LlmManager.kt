@@ -15,39 +15,44 @@ import javax.inject.Singleton
 import kotlin.coroutines.resume
 
 /**
- * On-device LLM inference wrapper — Spike C (MediaPipe tasks-genai).
+ * On-device LLM inference — Spike C (MediaPipe tasks-genai + Gemma 3 1B int4).
  *
- * MODEL SETUP (do after Spike C benchmark passes >5 tok/s):
- *  1. Download from Kaggle (accept Gemma terms):
- *       https://www.kaggle.com/models/google/gemma-3/frameworks/litert
- *     File: gemma3-1b-it-cpu-int4.task
- *  2. Push to device:
- *       adb push gemma3-1b-it-cpu-int4.task \
- *         /data/data/com.vatsalya.founderpocket/files/models/
- *  3. isAvailable will return true — AssistantScreen enables the AI query form.
+ * Model: gemma3-1B-it-int4.task (529 MB, bundled in app/src/main/assets/)
  *
- * STREAMING: In tasks-genai ≥0.10.14 the result listener is registered at LlmInference
- * construction time via the options builder. We store the active token callback in a
- * member var; only one concurrent generate() call is supported (sufficient for this app).
+ * First-run behaviour: copies the .task file from assets → filesDir/models/
+ * on the first generate() call. Subsequent runs skip the copy.
+ * The copy takes ~30 s depending on storage speed — only happens once.
  *
- * VERSION: If Gemma 3 needs a newer tasks-genai version, update mediapipeTasksGenai
- * in libs.versions.toml after Spike C confirms which version works on your device.
+ * VERSION NOTE: tasks-genai 0.10.14 is used. If Gemma 3 needs a newer version
+ * after Spike C benchmarking, update mediapipeTasksGenai in libs.versions.toml.
+ * The litert-lm library can replace tasks-genai with the same API surface.
  */
 @Singleton
 class LlmManager @Inject constructor(@ApplicationContext private val context: Context) {
 
     private companion object {
         const val TAG = "LlmManager"
-        const val MODEL_FILENAME = "gemma3-1b-it-cpu-int4.task"
+        const val MODEL_FILENAME = "gemma3-1B-it-int4.task"
         const val MAX_TOKENS = 512
     }
 
+    /** Destination path that LlmInference reads from (needs a real file path, not an InputStream). */
     fun modelFile(): File = context.filesDir.resolve("models/$MODEL_FILENAME")
 
-    val isAvailable: Boolean get() = modelFile().exists()
+    /**
+     * True if the model is ready to use:
+     *  - already copied to filesDir, OR
+     *  - present in assets (will be copied on first generate() call)
+     */
+    val isAvailable: Boolean
+        get() = modelFile().exists() || assetExists()
 
-    // These are accessed from the LlmInference result-listener thread
-    @Volatile private var activeContinuation: kotlinx.coroutines.CancellableContinuation<Unit>? = null
+    private fun assetExists(): Boolean = runCatching {
+        context.assets.open(MODEL_FILENAME).use { true }
+    }.getOrDefault(false)
+
+    // Streaming callback state — one concurrent generate() call at a time
+    @Volatile private var activeCont: kotlinx.coroutines.CancellableContinuation<Unit>? = null
     @Volatile private var activeOnToken: ((String) -> Unit)? = null
 
     private var llmInference: LlmInference? = null
@@ -56,7 +61,24 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
     private suspend fun ensureLoaded(): Boolean = initMutex.withLock {
         if (llmInference != null) return@withLock true
         if (!isAvailable) return@withLock false
-        return@withLock withContext(Dispatchers.Default) {
+
+        return@withLock withContext(Dispatchers.IO) {
+            // Copy from assets to filesDir if not already there
+            if (!modelFile().exists()) {
+                Log.i(TAG, "First-run: copying $MODEL_FILENAME from assets (~529 MB)…")
+                modelFile().parentFile?.mkdirs()
+                runCatching {
+                    context.assets.open(MODEL_FILENAME).use { src ->
+                        modelFile().outputStream().use { dst -> src.copyTo(dst) }
+                    }
+                    Log.i(TAG, "Copy complete.")
+                }.onFailure { e ->
+                    Log.e(TAG, "Asset copy failed", e)
+                    return@withContext false
+                }
+            }
+
+            // Load model into LlmInference
             runCatching {
                 val options = LlmInference.LlmInferenceOptions.builder()
                     .setModelPath(modelFile().absolutePath)
@@ -65,18 +87,17 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
                     .setTemperature(0.8f)
                     .setRandomSeed(101)
                     .setResultListener { partial, done ->
-                        // Called on LlmInference's internal thread per token
                         if (partial != null) activeOnToken?.invoke(partial)
                         if (done) {
-                            val cont = activeContinuation
-                            activeContinuation = null
+                            val cont = activeCont
+                            activeCont = null
                             activeOnToken = null
                             cont?.resume(Unit)
                         }
                     }
                     .build()
                 llmInference = LlmInference.createFromOptions(context, options)
-                Log.i(TAG, "Model loaded: $MODEL_FILENAME")
+                Log.i(TAG, "Model ready.")
                 true
             }.getOrElse { e ->
                 Log.e(TAG, "Failed to load model", e)
@@ -86,27 +107,23 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
     }
 
     /**
-     * Generates a response, streaming partial tokens to [onToken].
-     * Suspends until generation is complete or an error occurs.
+     * Streams generated tokens into [onToken]. Suspends until generation completes.
+     * First call triggers the one-time asset-copy + model load (~30–60 s on first run).
      */
     suspend fun generate(prompt: String, onToken: (String) -> Unit) {
         if (!ensureLoaded()) {
-            onToken(
-                "AI not activated yet.\n\n" +
-                "Push Gemma 3 1B model to:\n${modelFile().absolutePath}\n\n" +
-                "See LlmManager.kt for full instructions."
-            )
+            onToken("Model unavailable. Check logcat for LlmManager errors.")
             return
         }
         withContext(Dispatchers.Default) {
             suspendCancellableCoroutine { cont ->
-                activeContinuation = cont
+                activeCont = cont
                 activeOnToken = onToken
                 try {
                     llmInference!!.generateResponseAsync(prompt)
                 } catch (e: Exception) {
                     Log.e(TAG, "generateResponseAsync failed", e)
-                    activeContinuation = null
+                    activeCont = null
                     activeOnToken = null
                     onToken("\n[Error: ${e.message}]")
                     if (cont.isActive) cont.resume(Unit)
@@ -115,9 +132,10 @@ class LlmManager @Inject constructor(@ApplicationContext private val context: Co
         }
     }
 
-    /** Release the model to reclaim ~2 GB RAM; reloads lazily on next generate(). */
+    /** Release loaded model to reclaim ~1 GB RAM; reloads lazily on next generate(). */
     fun release() {
         llmInference?.close()
         llmInference = null
+        Log.i(TAG, "Model released.")
     }
 }

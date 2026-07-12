@@ -20,7 +20,9 @@ data class AssistantUiState(
     val modelPath: String = "",
     val aiQuery: String = "What should I work on today?",
     val aiResponse: String = "",
-    val isGenerating: Boolean = false
+    val isGenerating: Boolean = false,
+    // True on first generate() call while the 529 MB copy from assets is in progress
+    val isCopyingModel: Boolean = false
 )
 
 @HiltViewModel
@@ -57,14 +59,19 @@ class AssistantViewModel @Inject constructor(
         val s = _state.value
         if (s.isGenerating || s.aiQuery.isBlank()) return
         viewModelScope.launch {
-            _state.value = s.copy(isGenerating = true, aiResponse = "")
+            val firstRun = !llmManager.modelFile().exists() && llmManager.isAvailable
+            _state.value = s.copy(
+                isGenerating   = true,
+                isCopyingModel = firstRun,
+                aiResponse     = if (firstRun) "Copying model from assets (first run, ~30 s)…" else ""
+            )
             val prompt = buildPrompt(s)
             val buffer = StringBuilder()
             llmManager.generate(prompt) { token ->
                 buffer.append(token)
-                _state.value = _state.value.copy(aiResponse = buffer.toString())
+                _state.value = _state.value.copy(aiResponse = buffer.toString(), isCopyingModel = false)
             }
-            _state.value = _state.value.copy(isGenerating = false)
+            _state.value = _state.value.copy(isGenerating = false, isCopyingModel = false)
         }
     }
 

@@ -115,6 +115,18 @@ fun AssistantScreen(onBack: () -> Unit, viewModel: AssistantViewModel = hiltView
                 enabled = !state.isGenerating
             )
 
+            if (state.isCopyingModel) {
+                Card(modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text("Copying model from assets (first run, ~30 s)…",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+
             Button(
                 onClick = viewModel::generate,
                 enabled = state.aiQuery.isNotBlank() && !state.isGenerating,
@@ -123,7 +135,7 @@ fun AssistantScreen(onBack: () -> Unit, viewModel: AssistantViewModel = hiltView
                 if (state.isGenerating) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
-                    Text("Generating…")
+                    Text(if (state.isCopyingModel) "Copying model…" else "Generating…")
                 } else {
                     Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
