@@ -1,5 +1,8 @@
 package com.vatsalya.founderpocket.ui.onboarding
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -11,32 +14,41 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.vatsalya.founderpocket.R
 import kotlinx.coroutines.launch
 
+private sealed class PageArt {
+    data class VectorIcon(val icon: ImageVector) : PageArt()
+    data class LogoSplash(@DrawableRes val resId: Int) : PageArt()
+}
+
 private data class OnboardingPage(
-    val icon: ImageVector,
+    val art: PageArt,
     val title: String,
     val body: String
 )
 
 private val PAGES = listOf(
     OnboardingPage(
-        icon  = Icons.Default.Lock,
-        title = "Private by design",
-        body  = "Founder Pocket never touches the internet. Every note, meeting, and document lives encrypted on your device — nothing ever leaves."
+        art   = PageArt.LogoSplash(R.drawable.logo),
+        title = "Founder Pocket",
+        body  = "Your offline-first notebook. Every note, meeting, and document stays encrypted on your device — nothing ever leaves."
     ),
     OnboardingPage(
-        icon  = Icons.Default.GridView,
+        art   = PageArt.VectorIcon(Icons.Default.GridView),
         title = "12 capture types",
-        body  = "Notes, voice memos, meetings, ideas, tasks, follow-ups, contacts, expenses, wins, links, documents, and more — one FAB, under 60 seconds each."
+        body  = "Notes, voice, meetings, ideas, tasks, follow-ups, contacts, expenses, wins, links, docs, and more — under 60 seconds each."
     ),
     OnboardingPage(
-        icon  = Icons.Default.Psychology,
+        art   = PageArt.VectorIcon(Icons.Default.Psychology),
         title = "Semantic recall + AI",
-        body  = "Find any capture by meaning, not just keywords. An on-device AI assistant summarises your day and surfaces what needs your attention."
+        body  = "Find any capture by meaning, not just keywords. On-device AI surfaces what needs your attention today."
     )
 )
 
@@ -59,7 +71,7 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                     .weight(1f)
                     .fillMaxWidth()
             ) { index ->
-                OnboardingPage(PAGES[index])
+                OnboardingPageContent(PAGES[index])
             }
 
             // Dot indicator
@@ -87,20 +99,12 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
-                    onClick = onComplete,
-                    enabled = !isLast || pagerState.currentPage > 0
-                ) {
-                    Text("Skip")
-                }
+                TextButton(onClick = onComplete) { Text("Skip") }
 
                 Button(
                     onClick = {
-                        if (isLast) {
-                            onComplete()
-                        } else {
-                            scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                        }
+                        if (isLast) onComplete()
+                        else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
                     }
                 ) {
                     Text(if (isLast) "Get started" else "Next")
@@ -111,7 +115,7 @@ fun OnboardingScreen(onComplete: () -> Unit) {
 }
 
 @Composable
-private fun OnboardingPage(page: OnboardingPage) {
+private fun OnboardingPageContent(page: OnboardingPage) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -119,12 +123,31 @@ private fun OnboardingPage(page: OnboardingPage) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = page.icon,
-            contentDescription = null,
-            modifier = Modifier.size(96.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
+        when (val art = page.art) {
+            is PageArt.LogoSplash -> {
+                Box(
+                    modifier = Modifier
+                        .size(180.dp)
+                        .background(Color.Black, MaterialTheme.shapes.extraLarge),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(art.resId),
+                        contentDescription = "Founder Pocket logo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
+            is PageArt.VectorIcon -> {
+                Icon(
+                    imageVector = art.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(96.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
         Spacer(Modifier.height(32.dp))
         Text(
             text = page.title,
