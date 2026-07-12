@@ -7,43 +7,14 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.LocationOff
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -54,6 +25,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.vatsalya.founderpocket.data.model.CaptureType
+import com.vatsalya.founderpocket.ui.capture.forms.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -69,17 +41,13 @@ fun CaptureScreen(
         if (state.saved) onSaved()
     }
 
-    // Photo picker
     val photoLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? -> viewModel.onPhotoSelected(uri) }
 
-    // Location permission launcher
     val locationPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) viewModel.fetchLocation()
-    }
+    ) { granted -> if (granted) viewModel.fetchLocation() }
 
     Scaffold(
         topBar = {
@@ -101,19 +69,18 @@ fun CaptureScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Body field (not shown for VOICE — transcript fills it)
+            if (state.selectedType != CaptureType.VOICE) {
+                OutlinedTextField(
+                    value = state.body,
+                    onValueChange = viewModel::onBodyChange,
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    placeholder = { Text("What's on your mind?") },
+                    label = { Text(state.selectedType.name) }
+                )
+            }
 
-            // ── Body ────────────────────────────────────────────
-            OutlinedTextField(
-                value = state.body,
-                onValueChange = viewModel::onBodyChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(160.dp),
-                placeholder = { Text("What's on your mind?") },
-                label = { Text(state.selectedType.name) }
-            )
-
-            // ── Quick actions row ────────────────────────────────
+            // Quick actions row
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 IconButton(onClick = {
                     clipboard.getText()?.text?.let { viewModel.prefill(it) }
@@ -125,7 +92,6 @@ fun CaptureScreen(
                 }) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Attach photo")
                 }
-                // Location toggle
                 if (state.isLocationFetching) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(4.dp))
                 } else if (state.location != null) {
@@ -147,7 +113,7 @@ fun CaptureScreen(
                 }
             }
 
-            // ── Location chip ────────────────────────────────────
+            // Location chip
             state.location?.let { loc ->
                 val label = loc.label ?: "%.4f, %.4f".format(loc.lat, loc.lng)
                 AssistChip(
@@ -158,19 +124,17 @@ fun CaptureScreen(
                 )
             }
 
-            // ── Photo thumbnail ──────────────────────────────────
+            // Photo thumbnail
             state.photoUri?.let { uri ->
                 AsyncImage(
                     model = uri,
                     contentDescription = "Attached photo",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(160.dp),
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
                     contentScale = ContentScale.Crop
                 )
             }
 
-            // ── Type picker (appears after text is entered) ──────
+            // Type picker
             if (state.showTypePicker) {
                 Text("Type", style = MaterialTheme.typography.labelMedium)
                 FlowRow(
@@ -187,7 +151,22 @@ fun CaptureScreen(
                 }
             }
 
-            // ── Tags ─────────────────────────────────────────────
+            // Payload form section
+            if (state.selectedType == CaptureType.VOICE) {
+                VoiceForm(onTranscript = viewModel::onTranscript)
+                if (state.body.isNotBlank()) {
+                    OutlinedTextField(
+                        value = state.body,
+                        onValueChange = viewModel::onBodyChange,
+                        modifier = Modifier.fillMaxWidth().height(120.dp),
+                        label = { Text("Transcript") }
+                    )
+                }
+            } else {
+                PayloadSection(state = state.payloadState, onUpdate = viewModel::onPayloadUpdate)
+            }
+
+            // Tags
             Text("Tags", style = MaterialTheme.typography.labelMedium)
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -201,16 +180,10 @@ fun CaptureScreen(
                     placeholder = { Text("Add tag…") },
                     singleLine = true
                 )
-                Button(
-                    onClick = viewModel::addTag,
-                    enabled = state.tagInput.isNotBlank()
-                ) { Text("Add") }
+                Button(onClick = viewModel::addTag, enabled = state.tagInput.isNotBlank()) { Text("Add") }
             }
             if (state.tags.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     state.tags.forEach { tag ->
                         InputChip(
                             selected = false,
@@ -232,5 +205,20 @@ fun CaptureScreen(
                 Text(if (state.isSaving) "Saving…" else "Save")
             }
         }
+    }
+}
+
+@Composable
+private fun PayloadSection(state: PayloadFormState, onUpdate: (PayloadFormState) -> Unit) {
+    when (state) {
+        is PayloadFormState.Meeting  -> MeetingForm(state) { onUpdate(it) }
+        is PayloadFormState.Idea     -> IdeaForm(state) { onUpdate(it) }
+        is PayloadFormState.Task     -> TaskForm(state) { onUpdate(it) }
+        is PayloadFormState.Followup -> FollowupForm(state) { onUpdate(it) }
+        is PayloadFormState.Contact  -> ContactForm(state) { onUpdate(it) }
+        is PayloadFormState.Expense  -> ExpenseForm(state) { onUpdate(it) }
+        is PayloadFormState.Parking  -> ParkingForm(state) { onUpdate(it) }
+        is PayloadFormState.Link     -> LinkForm(state) { onUpdate(it) }
+        PayloadFormState.None        -> {}
     }
 }
