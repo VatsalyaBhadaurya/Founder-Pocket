@@ -2,22 +2,25 @@ package com.vatsalya.founderpocket
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.*
 import androidx.navigation.compose.rememberNavController
+import com.vatsalya.founderpocket.data.security.AppLockManager
 import com.vatsalya.founderpocket.data.share.PendingShareState
 import com.vatsalya.founderpocket.ui.navigation.NavGraph
 import com.vatsalya.founderpocket.ui.navigation.Routes
+import com.vatsalya.founderpocket.ui.security.BiometricGate
 import com.vatsalya.founderpocket.ui.theme.FounderPocketTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var pendingShare: PendingShareState
+    @Inject lateinit var appLockManager: AppLockManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,8 +29,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             FounderPocketTheme {
                 val navController = rememberNavController()
+                val isLocked by appLockManager.isLocked.collectAsState()
 
-                // Spike D: auto-navigate to Capture when a share intent arrives
                 val sharePayload by pendingShare.payload.collectAsState()
                 LaunchedEffect(sharePayload) {
                     if (sharePayload != null) {
@@ -35,12 +38,23 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                NavGraph(navController = navController)
+                BiometricGate(isLocked = isLocked, onUnlock = appLockManager::unlock) {
+                    NavGraph(navController = navController)
+                }
             }
         }
     }
 
-    // Called when app is already running and receives a new share intent (singleTop)
+    override fun onPause() {
+        super.onPause()
+        appLockManager.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appLockManager.onResume()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleShareIntent(intent)

@@ -70,8 +70,8 @@ fun CaptureScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Body field (not shown for VOICE — transcript fills it)
-            if (state.selectedType != CaptureType.VOICE) {
+            // Body field (not shown for VOICE — transcript fills it; not for DOC — auto-filled on encryption)
+            if (state.selectedType != CaptureType.VOICE && state.selectedType != CaptureType.DOC) {
                 OutlinedTextField(
                     value = state.body,
                     onValueChange = viewModel::onBodyChange,
@@ -174,7 +174,11 @@ fun CaptureScreen(
                     )
                 }
             } else {
-                PayloadSection(state = state.payloadState, onUpdate = viewModel::onPayloadUpdate)
+                PayloadSection(
+                    state = state.payloadState,
+                    onUpdate = viewModel::onPayloadUpdate,
+                    onDocFilePicked = viewModel::onDocFilePicked
+                )
             }
 
             // Tags
@@ -210,7 +214,13 @@ fun CaptureScreen(
 
             Button(
                 onClick = viewModel::save,
-                enabled = state.body.isNotBlank() && !state.isSaving,
+                enabled = when (state.selectedType) {
+                    CaptureType.DOC -> {
+                        val docState = state.payloadState as? PayloadFormState.Doc
+                        docState?.encryptedRef?.isNotBlank() == true && !state.isSaving
+                    }
+                    else -> state.body.isNotBlank() && !state.isSaving
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (state.isSaving) "Saving…" else "Save")
@@ -220,7 +230,11 @@ fun CaptureScreen(
 }
 
 @Composable
-private fun PayloadSection(state: PayloadFormState, onUpdate: (PayloadFormState) -> Unit) {
+private fun PayloadSection(
+    state: PayloadFormState,
+    onUpdate: (PayloadFormState) -> Unit,
+    onDocFilePicked: (android.net.Uri, String) -> Unit
+) {
     when (state) {
         is PayloadFormState.Meeting  -> MeetingForm(state) { onUpdate(it) }
         is PayloadFormState.Idea     -> IdeaForm(state) { onUpdate(it) }
@@ -230,6 +244,7 @@ private fun PayloadSection(state: PayloadFormState, onUpdate: (PayloadFormState)
         is PayloadFormState.Expense  -> ExpenseForm(state) { onUpdate(it) }
         is PayloadFormState.Parking  -> ParkingForm(state) { onUpdate(it) }
         is PayloadFormState.Link     -> LinkForm(state) { onUpdate(it) }
+        is PayloadFormState.Doc      -> DocForm(state, onFilePicked = onDocFilePicked)
         PayloadFormState.None        -> {}
     }
 }

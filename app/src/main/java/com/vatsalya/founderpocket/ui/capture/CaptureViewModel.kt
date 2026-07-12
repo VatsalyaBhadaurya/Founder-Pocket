@@ -1,6 +1,7 @@
 package com.vatsalya.founderpocket.ui.capture
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vatsalya.founderpocket.data.location.LocationRepository
@@ -8,10 +9,12 @@ import com.vatsalya.founderpocket.data.model.Capture
 import com.vatsalya.founderpocket.data.model.CaptureType
 import com.vatsalya.founderpocket.data.model.LocationData
 import com.vatsalya.founderpocket.data.model.payload.*
+import com.vatsalya.founderpocket.data.security.EncryptedDocStore
 import com.vatsalya.founderpocket.data.share.PendingShareState
 import com.vatsalya.founderpocket.data.util.LinkCategorizer
 import com.vatsalya.founderpocket.domain.usecase.SaveCaptureUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -59,6 +62,12 @@ sealed class PayloadFormState {
         val isLoading: Boolean = false
     ) : PayloadFormState()
     data class Link(val url: String = "", val category: String = "web") : PayloadFormState()
+    data class Doc(
+        val docType: String = "other",
+        val encryptedRef: String = "",
+        val fileName: String = "",
+        val isEncrypting: Boolean = false
+    ) : PayloadFormState()
 }
 
 data class CaptureUiState(
@@ -82,7 +91,8 @@ data class CaptureUiState(
 class CaptureViewModel @Inject constructor(
     private val saveCapture: SaveCaptureUseCase,
     private val locationRepository: LocationRepository,
-    private val pendingShare: PendingShareState
+    private val pendingShare: PendingShareState,
+    private val encryptedDocStore: EncryptedDocStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CaptureUiState())
@@ -123,6 +133,7 @@ class CaptureViewModel @Inject constructor(
                 PayloadFormState.Parking(isLoading = true)
             }
             CaptureType.LINK     -> PayloadFormState.Link()
+            CaptureType.DOC      -> PayloadFormState.Doc()
             else                 -> PayloadFormState.None
         }
         _state.value = _state.value.copy(selectedType = type, showTypePicker = false, payloadState = payload)
@@ -188,10 +199,35 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    fun onDocFilePicked(uri: Uri, docType: String) {
+        val s = _state.value
+        val docState = s.payloadState as? PayloadFormState.Doc ?: return
+        _state.value = s.copy(payloadState = docState.copy(isEncrypting = true, docType = docType))
+        viewModelScope.launch(Dispatchers.IO) {
+            val encryptedRef = runCatching {
+                encryptedDocStore.save(uri, docType)
+            }.getOrElse { e ->
+                Log.e("CaptureVM", "Doc encryption failed", e)
+                _state.value = _state.value.copy(payloadState = docState.copy(isEncrypting = false))
+                return@launch
+            }
+            val fileName = uri.lastPathSegment?.substringAfterLast('/') ?: "document"
+            _state.value = _state.value.copy(
+                body = "$docType — $fileName",
+                payloadState = docState.copy(
+                    docType = docType,
+                    encryptedRef = encryptedRef,
+                    fileName = fileName,
+                    isEncrypting = false
+                )
+            )
+        }
+    }
+
     fun save() {
         val s = _state.value
         val canSave = when (s.selectedType) {
-            CaptureType.VOICE -> s.body.isNotBlank()
+            CaptureType.DOC -> (s.payloadState as? PayloadFormState.Doc)?.encryptedRef?.isNotBlank() == true
             else -> s.body.isNotBlank()
         }
         if (!canSave || s.isSaving) return
@@ -251,6 +287,7 @@ class CaptureViewModel @Inject constructor(
             )
         )
         is PayloadFormState.Link     -> Json.encodeToString(LinkPayload(payload.url, payload.category))
+        is PayloadFormState.Doc      -> Json.encodeToString(DocPayload(payload.docType, payload.encryptedRef))
         PayloadFormState.None        -> "{}"
     }
 
@@ -260,6 +297,7 @@ class CaptureViewModel @Inject constructor(
         is PayloadFormState.Followup -> payload.subject
         is PayloadFormState.Contact  -> listOf(payload.name, payload.metAt, payload.org, payload.note).joinToString(" ")
         is PayloadFormState.Link     -> payload.url
+        is PayloadFormState.Doc      -> payload.docType
         else                         -> ""
     }
 

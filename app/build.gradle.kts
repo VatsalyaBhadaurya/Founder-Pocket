@@ -98,6 +98,9 @@ dependencies {
     // Coil
     implementation(libs.coil.compose)
 
+    // Biometric
+    implementation(libs.androidx.biometric)
+
     // Tests
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)

@@ -56,3 +56,9 @@ data class LinkPayload(
     val url: String = "",
     val category: String = "web"   // repo | paper | post | video | web
 )
+
+@Serializable
+data class DocPayload(
+    val docType: String = "",       // aadhaar | pan | passport | resume | deck | other
+    val encryptedRef: String = ""   // filename under filesDir/docs/ — never log this
+)
