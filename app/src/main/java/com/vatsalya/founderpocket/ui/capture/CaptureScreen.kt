@@ -18,9 +18,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -37,9 +41,16 @@ fun CaptureScreen(
     val state by viewModel.state.collectAsState()
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val bodyFocus = remember { FocusRequester() }
 
     LaunchedEffect(state.saved) {
         if (state.saved) onSaved()
+    }
+
+    // Auto-open keyboard for immediate capture (one-minute constitution)
+    LaunchedEffect(Unit) {
+        runCatching { bodyFocus.requestFocus() }
     }
 
     val photoLauncher = rememberLauncherForActivityResult(
@@ -75,7 +86,10 @@ fun CaptureScreen(
                 OutlinedTextField(
                     value = state.body,
                     onValueChange = viewModel::onBodyChange,
-                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .focusRequester(bodyFocus),
                     placeholder = { Text("What's on your mind?") },
                     label = { Text(state.selectedType.name) }
                 )
@@ -213,7 +227,10 @@ fun CaptureScreen(
             Spacer(Modifier.weight(1f))
 
             Button(
-                onClick = viewModel::save,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.save()
+                },
                 enabled = when (state.selectedType) {
                     CaptureType.DOC -> {
                         val docState = state.payloadState as? PayloadFormState.Doc

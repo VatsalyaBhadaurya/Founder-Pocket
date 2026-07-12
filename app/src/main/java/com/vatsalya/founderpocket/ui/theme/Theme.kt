@@ -10,16 +10,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+private val LightColorScheme = lightColorScheme(
+    primary   = Blue700,
+    secondary = Teal600,
+    tertiary  = Amber600,
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+private val DarkColorScheme = darkColorScheme(
+    primary   = BlueLight,
+    secondary = TealLight,
+    tertiary  = AmberLight,
 )
 
 @Composable
@@ -34,12 +34,12 @@ fun FounderPocketTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        else      -> LightColorScheme
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
-        content = content
+        typography  = Typography,
+        content     = content
     )
 }

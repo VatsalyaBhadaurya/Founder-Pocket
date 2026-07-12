@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Founder Pocket — Privacy Policy</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #1a1a1a; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.1rem; margin-top: 2rem; }
+  p, li { font-size: 0.95rem; color: #333; }
+  .highlight { background: #eff6ff; border-left: 4px solid #1d4ed8; padding: 12px 16px; border-radius: 4px; margin: 24px 0; }
+</style>
+</head>
+<body>
+
+<h1>Founder Pocket — Privacy Policy</h1>
+<p>Last updated: July 2026</p>
+
+<div class="highlight">
+  <strong>The core promise:</strong> Nothing you capture in Founder Pocket ever leaves your device. There are no servers, no analytics, no cloud sync, and no third-party data sharing — ever.
+</div>
+
+<h2>What data we collect</h2>
+<p>Founder Pocket collects <strong>nothing</strong> from you. All data — notes, voice transcripts, meeting summaries, documents, expenses, and AI-generated responses — is stored locally on your device and nowhere else.</p>
+
+<h2>Documents &amp; sensitive files</h2>
+<p>Documents you store (Aadhaar, PAN, passport, resume, pitch decks) are encrypted at rest using AES-256-GCM via Android's Jetpack Security library. The encryption key is hardware-backed when your device supports it. Raw file bytes never appear in any database, log, or backup unless you explicitly enable Android's backup service.</p>
+
+<h2>AI features</h2>
+<p>The AI assistant (Gemma 3 1B) runs entirely on-device using MediaPipe. Your queries and captures are processed locally — they are never sent to any model API, cloud provider, or third-party service.</p>
+
+<h2>Location data</h2>
+<p>Location is only accessed when you explicitly tap "Attach location" while capturing a note or parking spot. It is stored with that capture on your device and is not transmitted anywhere.</p>
+
+<h2>Microphone / Speech</h2>
+<p>The RECORD_AUDIO permission is only used when you tap the Voice capture button. Transcription is performed by Android's on-device speech recogniser. No audio is recorded in the background.</p>
+
+<h2>Biometric data</h2>
+<p>Biometric authentication (fingerprint/face) uses Android's BiometricPrompt API. Biometric templates are managed entirely by the OS — Founder Pocket never reads, stores, or processes your biometric data directly.</p>
+
+<h2>Notifications</h2>
+<p>Reminder notifications are scheduled locally via WorkManager. No notification content is sent to any server.</p>
+
+<h2>Analytics &amp; crash reporting</h2>
+<p>There are none. Founder Pocket has no analytics SDK, no crash reporting service, and no telemetry of any kind.</p>
+
+<h2>Third-party libraries</h2>
+<p>Libraries used (ONNX Runtime, MediaPipe, Jetpack Security, Hilt, Room, Coil) are open-source and operate entirely on-device. None of them phone home or collect data.</p>
+
+<h2>Data retention &amp; deletion</h2>
+<p>Your data exists only on your device. To delete it, uninstall the app or clear app data in device settings. There is no account, no server-side copy, and nothing to request deletion of from us.</p>
+
+<h2>Children</h2>
+<p>Founder Pocket is designed for adult professionals. We do not knowingly collect data from anyone — including children — because we collect no data at all.</p>
+
+<h2>Changes to this policy</h2>
+<p>If we ever change this policy in a material way, the updated version will be bundled in the next app update.</p>
+
+<h2>Contact</h2>
+<p>Questions about privacy? Reach us at <strong>vatbhadaurya@gmail.com</strong>.</p>
+
+</body>
+</html>

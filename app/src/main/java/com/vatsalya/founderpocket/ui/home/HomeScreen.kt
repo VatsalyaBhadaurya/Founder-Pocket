@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.vatsalya.founderpocket.ui.shared.CaptureCard
+import com.vatsalya.founderpocket.ui.shared.EmptyState
 import com.vatsalya.founderpocket.ui.shared.greeting
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,16 +76,20 @@ fun HomeScreen(
             }
 
             item {
-                Column {
-                    Text("Recent", style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 4.dp))
-                    if (recent.isEmpty()) {
-                        Text(
-                            "Nothing captured yet. Tap + to start.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Text(
+                    "Recent",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+
+            if (recent.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Default.BookmarkAdd,
+                        title = "Nothing captured yet",
+                        subtitle = "Tap + to record a note, meeting, idea, or anything on your mind."
+                    )
                 }
             }
 
