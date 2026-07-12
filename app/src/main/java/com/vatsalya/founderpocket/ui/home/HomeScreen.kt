@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,6 +22,7 @@ fun HomeScreen(
     onNewCapture: () -> Unit,
     onViewAll: () -> Unit,
     onFocusTimer: () -> Unit,
+    onAssistant: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val todayFocus by viewModel.todayFocus.collectAsState(initial = emptyList())
@@ -31,6 +33,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text(greeting()) },
                 actions = {
+                    IconButton(onClick = onAssistant) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "Assistant")
+                    }
                     IconButton(onClick = onFocusTimer) {
                         Icon(Icons.Default.Timer, contentDescription = "Focus Timer")
                     }
@@ -58,7 +63,10 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Today's Focus", style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = onFocusTimer) { Text("Start timer") }
+                        Row {
+                            TextButton(onClick = onAssistant) { Text("Ask AI") }
+                            TextButton(onClick = onFocusTimer) { Text("Timer") }
+                        }
                     }
                 }
                 items(todayFocus) { capture -> CaptureCard(capture) }
