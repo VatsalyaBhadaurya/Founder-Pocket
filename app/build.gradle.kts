@@ -86,6 +86,12 @@ dependencies {
     // ONNX Runtime Mobile — model + vocab.txt must be placed in app/src/main/assets/ after Spike A
     implementation(libs.onnxruntime.android)
 
+    // LLM inference — Spike C. Model file placed at filesDir/models/ after Spike C benchmark passes
+    implementation(libs.mediapipe.tasks.genai)
+
+    // Jetpack Security — Spike E
+    implementation(libs.androidx.security.crypto)
+
     // Location
     implementation(libs.play.services.location)
 

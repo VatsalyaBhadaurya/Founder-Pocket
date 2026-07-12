@@ -38,6 +38,12 @@ kotlinxSerialization = "1.8.1"
 # ML / embeddings
 onnxRuntime = "1.22.0"
 
+# LLM inference — verify version against Spike C results; 0.10.14 supports Gemma 2, bump if Gemma 3 needs newer
+mediapipeTasksGenai = "0.10.14"
+
+# Jetpack Security (Spike E — EncryptedFile)
+securityCrypto = "1.1.0-alpha06"
+
 # Location
 playServicesLocation = "21.3.0"
 
@@ -93,6 +99,12 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # ONNX Runtime Mobile — verify artifact coordinates against real ORT-Android release notes before use
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxRuntime" }
+
+# LLM inference (MediaPipe tasks-genai; swap for litert-lm after Spike C confirms version)
+mediapipe-tasks-genai = { group = "com.google.mediapipe", name = "tasks-genai", version.ref = "mediapipeTasksGenai" }
+
+# Jetpack Security
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 
 # Location
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }

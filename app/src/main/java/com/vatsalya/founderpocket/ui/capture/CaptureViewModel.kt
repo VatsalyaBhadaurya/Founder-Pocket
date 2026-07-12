@@ -8,6 +8,8 @@ import com.vatsalya.founderpocket.data.model.Capture
 import com.vatsalya.founderpocket.data.model.CaptureType
 import com.vatsalya.founderpocket.data.model.LocationData
 import com.vatsalya.founderpocket.data.model.payload.*
+import com.vatsalya.founderpocket.data.share.PendingShareState
+import com.vatsalya.founderpocket.data.util.LinkCategorizer
 import com.vatsalya.founderpocket.domain.usecase.SaveCaptureUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,6 +72,7 @@ data class CaptureUiState(
     val photoUri: Uri? = null,
     val location: LocationData? = null,
     val isLocationFetching: Boolean = false,
+    val sourceApp: String? = null,       // set from share intent (Spike D)
     // save lifecycle
     val isSaving: Boolean = false,
     val saved: Boolean = false
@@ -78,11 +81,30 @@ data class CaptureUiState(
 @HiltViewModel
 class CaptureViewModel @Inject constructor(
     private val saveCapture: SaveCaptureUseCase,
-    private val locationRepository: LocationRepository
+    private val locationRepository: LocationRepository,
+    private val pendingShare: PendingShareState
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(CaptureUiState())
     val state: StateFlow<CaptureUiState> = _state
+
+    init {
+        // Spike D: consume any pending share intent on screen open
+        pendingShare.consume()?.let { share ->
+            val text = share.text
+            val isUrl = text.startsWith("http://") || text.startsWith("https://")
+            _state.value = _state.value.copy(
+                body          = text,
+                showTypePicker = true,
+                selectedType  = if (isUrl) CaptureType.LINK else CaptureType.NOTE,
+                payloadState  = if (isUrl) PayloadFormState.Link(
+                    url      = text,
+                    category = LinkCategorizer.categorize(text)
+                ) else PayloadFormState.None,
+                sourceApp     = share.sourceApp
+            )
+        }
+    }
 
     fun onBodyChange(text: String) {
         _state.value = _state.value.copy(body = text, showTypePicker = text.isNotBlank())
@@ -186,6 +208,7 @@ class CaptureViewModel @Inject constructor(
                     lat        = s.location?.lat ?: (s.payloadState as? PayloadFormState.Parking)?.lat,
                     lng        = s.location?.lng ?: (s.payloadState as? PayloadFormState.Parking)?.lng,
                     placeLabel = s.location?.label ?: (s.payloadState as? PayloadFormState.Parking)?.label,
+                    sourceApp  = s.sourceApp,
                     photoUri   = s.photoUri?.toString(),
                     tags       = encodeTags(s.tags),
                     ftsText    = buildFts(s, ftsExtra)

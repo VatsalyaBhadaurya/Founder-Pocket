@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -121,6 +122,16 @@ fun CaptureScreen(
                     label = { Text(label) },
                     leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp)) },
                     trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Remove", modifier = Modifier.size(14.dp)) }
+                )
+            }
+
+            // Source app chip (from share intent)
+            state.sourceApp?.let { pkg ->
+                val label = pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+                AssistChip(
+                    onClick = {},
+                    label = { Text("Shared from $label") },
+                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp)) }
                 )
             }
 
