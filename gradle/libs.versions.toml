@@ -35,6 +35,15 @@ hiltNavigationCompose = "1.2.0"
 # Kotlin Serialization
 kotlinxSerialization = "1.8.1"
 
+# ML / embeddings
+onnxRuntime = "1.20.0"
+
+# Location
+playServicesLocation = "21.3.0"
+
+# Image loading
+coil = "2.7.0"
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -81,6 +90,15 @@ hilt-compiler-androidx = { group = "androidx.hilt", name = "hilt-compiler", vers
 
 # Kotlin Serialization
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
+# ONNX Runtime Mobile — verify artifact coordinates against real ORT-Android release notes before use
+onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxRuntime" }
+
+# Location
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+
+# Coil (photo thumbnails)
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

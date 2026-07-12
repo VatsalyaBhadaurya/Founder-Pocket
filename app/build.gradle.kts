@@ -83,6 +83,15 @@ dependencies {
     // Kotlin Serialization
     implementation(libs.kotlinx.serialization.json)
 
+    // ONNX Runtime Mobile — model + vocab.txt must be placed in app/src/main/assets/ after Spike A
+    implementation(libs.onnxruntime.android)
+
+    // Location
+    implementation(libs.play.services.location)
+
+    // Coil
+    implementation(libs.coil.compose)
+
     // Tests
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)

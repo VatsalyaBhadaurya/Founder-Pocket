@@ -20,6 +20,8 @@ class CaptureRepository @Inject constructor(private val dao: CaptureDao) {
     fun searchKeyword(query: String): Flow<List<Capture>> =
         dao.searchFts("$query*")
 
+    suspend fun getById(id: Long): Capture? = dao.getById(id)
+
     suspend fun getAllWithEmbeddings(): List<Capture> = dao.getAllWithEmbeddings()
 
     suspend fun updateEmbedding(id: Long, embedding: ByteArray) =
