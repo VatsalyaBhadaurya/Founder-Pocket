@@ -2,6 +2,7 @@ package com.vatsalya.founderpocket.ui.capture
 
 import android.net.Uri
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vatsalya.founderpocket.data.location.LocationRepository
@@ -9,6 +10,7 @@ import com.vatsalya.founderpocket.data.model.Capture
 import com.vatsalya.founderpocket.data.model.CaptureType
 import com.vatsalya.founderpocket.data.model.LocationData
 import com.vatsalya.founderpocket.data.model.payload.*
+import com.vatsalya.founderpocket.data.repository.CaptureRepository
 import com.vatsalya.founderpocket.data.security.EncryptedDocStore
 import com.vatsalya.founderpocket.data.share.PendingShareState
 import com.vatsalya.founderpocket.data.util.LinkCategorizer
@@ -81,40 +83,106 @@ data class CaptureUiState(
     val photoUri: Uri? = null,
     val location: LocationData? = null,
     val isLocationFetching: Boolean = false,
-    val sourceApp: String? = null,       // set from share intent (Spike D)
+    val sourceApp: String? = null,
     // save lifecycle
     val isSaving: Boolean = false,
-    val saved: Boolean = false
+    val saved: Boolean = false,
+    // edit mode
+    val isEditMode: Boolean = false,
+    val editCaptureId: Long = 0L,
+    val editCreatedAt: Long = 0L
 )
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val saveCapture: SaveCaptureUseCase,
+    private val repository: CaptureRepository,
     private val locationRepository: LocationRepository,
     private val pendingShare: PendingShareState,
     private val encryptedDocStore: EncryptedDocStore
 ) : ViewModel() {
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     private val _state = MutableStateFlow(CaptureUiState())
     val state: StateFlow<CaptureUiState> = _state
 
     init {
-        // Spike D: consume any pending share intent on screen open
-        pendingShare.consume()?.let { share ->
-            val text = share.text
-            val isUrl = text.startsWith("http://") || text.startsWith("https://")
-            _state.value = _state.value.copy(
-                body          = text,
+        val editId = savedStateHandle.get<Long>("captureId")
+        if (editId != null && editId > 0L) {
+            loadForEdit(editId)
+        } else {
+            pendingShare.consume()?.let { share ->
+                val text = share.text
+                val isUrl = text.startsWith("http://") || text.startsWith("https://")
+                _state.value = _state.value.copy(
+                    body          = text,
+                    showTypePicker = true,
+                    selectedType  = if (isUrl) CaptureType.LINK else CaptureType.NOTE,
+                    payloadState  = if (isUrl) PayloadFormState.Link(
+                        url      = text,
+                        category = LinkCategorizer.categorize(text)
+                    ) else PayloadFormState.None,
+                    sourceApp     = share.sourceApp
+                )
+            }
+        }
+    }
+
+    private fun loadForEdit(id: Long) {
+        viewModelScope.launch {
+            val capture = repository.getById(id) ?: return@launch
+            val formTags = runCatching {
+                json.decodeFromString<List<String>>(capture.tags)
+            }.getOrDefault(emptyList())
+
+            _state.value = CaptureUiState(
+                body          = capture.body,
+                selectedType  = capture.type,
                 showTypePicker = true,
-                selectedType  = if (isUrl) CaptureType.LINK else CaptureType.NOTE,
-                payloadState  = if (isUrl) PayloadFormState.Link(
-                    url      = text,
-                    category = LinkCategorizer.categorize(text)
-                ) else PayloadFormState.None,
-                sourceApp     = share.sourceApp
+                payloadState  = deserializePayload(capture.type, capture.payload),
+                tags          = formTags,
+                sourceApp     = capture.sourceApp,
+                isEditMode    = true,
+                editCaptureId = id,
+                editCreatedAt = capture.createdAt
             )
         }
     }
+
+    private fun deserializePayload(type: CaptureType, payloadJson: String): PayloadFormState = runCatching {
+        when (type) {
+            CaptureType.MEETING  -> json.decodeFromString<MeetingPayload>(payloadJson).let {
+                PayloadFormState.Meeting(it.with, it.keyPoints, it.actionItems, deadline = it.deadline ?: "")
+            }
+            CaptureType.IDEA     -> json.decodeFromString<IdeaPayload>(payloadJson).let {
+                PayloadFormState.Idea(it.problem, it.whoHasIt, it.solution)
+            }
+            CaptureType.TASK     -> json.decodeFromString<TaskPayload>(payloadJson).let {
+                PayloadFormState.Task(it.due ?: "")
+            }
+            CaptureType.FOLLOWUP -> json.decodeFromString<FollowupPayload>(payloadJson).let {
+                PayloadFormState.Followup(it.subject, remindAt = it.remindAt)
+            }
+            CaptureType.CONTACT  -> json.decodeFromString<ContactPayload>(payloadJson).let {
+                PayloadFormState.Contact(it.name, it.metAt, it.org, it.note)
+            }
+            CaptureType.EXPENSE  -> json.decodeFromString<ExpensePayload>(payloadJson).let {
+                PayloadFormState.Expense(it.amount.toString(), it.category)
+            }
+            CaptureType.PARKING  -> json.decodeFromString<ParkingPayload>(payloadJson).let {
+                PayloadFormState.Parking(it.lat, it.lng, it.label, it.savedAt)
+            }
+            CaptureType.LINK     -> json.decodeFromString<LinkPayload>(payloadJson).let {
+                PayloadFormState.Link(it.url, it.category)
+            }
+            CaptureType.DOC      -> json.decodeFromString<DocPayload>(payloadJson).let {
+                PayloadFormState.Doc(it.docType, it.encryptedRef)
+            }
+            else -> PayloadFormState.None
+        }
+    }.getOrDefault(PayloadFormState.None)
 
     fun onBodyChange(text: String) {
         _state.value = _state.value.copy(body = text, showTypePicker = text.isNotBlank())
@@ -235,26 +303,47 @@ class CaptureViewModel @Inject constructor(
             _state.value = s.copy(isSaving = true)
             val payloadJson = encodePayload(s.payloadState, s.selectedType, s.location)
             val ftsExtra = buildPayloadFtsExtra(s.payloadState)
-            saveCapture(
-                Capture(
-                    createdAt  = System.currentTimeMillis(),
-                    type       = s.selectedType,
-                    body       = s.body,
-                    payload    = payloadJson,
-                    lat        = s.location?.lat ?: (s.payloadState as? PayloadFormState.Parking)?.lat,
-                    lng        = s.location?.lng ?: (s.payloadState as? PayloadFormState.Parking)?.lng,
-                    placeLabel = s.location?.label ?: (s.payloadState as? PayloadFormState.Parking)?.label,
-                    sourceApp  = s.sourceApp,
-                    photoUri   = s.photoUri?.toString(),
-                    tags       = encodeTags(s.tags),
-                    ftsText    = buildFts(s, ftsExtra)
-                ),
-                remindAt = (s.payloadState as? PayloadFormState.Followup)?.remindAt
-                    ?: if (s.selectedType == CaptureType.TASK) {
-                        val due = (s.payloadState as? PayloadFormState.Task)?.due
-                        if (due != null && due.isNotBlank()) com.vatsalya.founderpocket.ui.capture.forms.dateAtHourMillis(due, 9) else null
-                    } else null
-            )
+            val fts = buildFts(s, ftsExtra)
+
+            if (s.isEditMode && s.editCaptureId > 0L) {
+                repository.update(
+                    Capture(
+                        id         = s.editCaptureId,
+                        createdAt  = s.editCreatedAt,
+                        type       = s.selectedType,
+                        body       = s.body,
+                        payload    = payloadJson,
+                        lat        = s.location?.lat ?: (s.payloadState as? PayloadFormState.Parking)?.lat,
+                        lng        = s.location?.lng ?: (s.payloadState as? PayloadFormState.Parking)?.lng,
+                        placeLabel = s.location?.label ?: (s.payloadState as? PayloadFormState.Parking)?.label,
+                        sourceApp  = s.sourceApp,
+                        photoUri   = s.photoUri?.toString(),
+                        tags       = encodeTags(s.tags),
+                        ftsText    = fts
+                    )
+                )
+            } else {
+                saveCapture(
+                    Capture(
+                        createdAt  = System.currentTimeMillis(),
+                        type       = s.selectedType,
+                        body       = s.body,
+                        payload    = payloadJson,
+                        lat        = s.location?.lat ?: (s.payloadState as? PayloadFormState.Parking)?.lat,
+                        lng        = s.location?.lng ?: (s.payloadState as? PayloadFormState.Parking)?.lng,
+                        placeLabel = s.location?.label ?: (s.payloadState as? PayloadFormState.Parking)?.label,
+                        sourceApp  = s.sourceApp,
+                        photoUri   = s.photoUri?.toString(),
+                        tags       = encodeTags(s.tags),
+                        ftsText    = fts
+                    ),
+                    remindAt = (s.payloadState as? PayloadFormState.Followup)?.remindAt
+                        ?: if (s.selectedType == CaptureType.TASK) {
+                            val due = (s.payloadState as? PayloadFormState.Task)?.due
+                            if (due != null && due.isNotBlank()) com.vatsalya.founderpocket.ui.capture.forms.dateAtHourMillis(due, 9) else null
+                        } else null
+                )
+            }
             _state.value = _state.value.copy(isSaving = false, saved = true)
         }
     }

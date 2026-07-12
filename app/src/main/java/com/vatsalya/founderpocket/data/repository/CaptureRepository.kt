@@ -27,5 +27,7 @@ class CaptureRepository @Inject constructor(private val dao: CaptureDao) {
     suspend fun updateEmbedding(id: Long, embedding: ByteArray) =
         dao.updateEmbedding(id, embedding)
 
+    suspend fun update(capture: Capture) = dao.update(capture)
+
     suspend fun delete(id: Long) = dao.deleteById(id)
 }

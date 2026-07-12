@@ -36,6 +36,7 @@ import com.vatsalya.founderpocket.ui.capture.forms.*
 @Composable
 fun CaptureScreen(
     onSaved: () -> Unit,
+    modifier: Modifier = Modifier,
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -62,9 +63,10 @@ fun CaptureScreen(
     ) { granted -> if (granted) viewModel.fetchLocation() }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("New capture") },
+                title = { Text(if (state.isEditMode) "Edit ${state.selectedType.displayName}" else "New capture") },
                 navigationIcon = {
                     IconButton(onClick = onSaved) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
