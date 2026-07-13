@@ -150,4 +150,4 @@ Full policy: [`app/src/main/assets/privacy_policy.html`](app/src/main/assets/pri
 
 ## License
 
-MIT © Vatsalya Bhadaurya
+MIT © 2025 [Nextgen Research Lab And Infrastructure Development Pvt. Ltd.](https://nextgenrl.com)
