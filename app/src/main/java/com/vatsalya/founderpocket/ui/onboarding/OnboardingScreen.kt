@@ -1,14 +1,11 @@
 package com.vatsalya.founderpocket.ui.onboarding
 
-import androidx.annotation.DrawableRes
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,15 +14,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.vatsalya.founderpocket.R
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 private sealed class PageArt {
     data class VectorIcon(val icon: ImageVector) : PageArt()
-    data class LogoSplash(@DrawableRes val resId: Int) : PageArt()
+    object LogoSplash : PageArt()
 }
 
 private data class OnboardingPage(
@@ -36,7 +32,7 @@ private data class OnboardingPage(
 
 private val PAGES = listOf(
     OnboardingPage(
-        art   = PageArt.LogoSplash(R.drawable.logo),
+        art   = PageArt.LogoSplash,
         title = "Founder Pocket",
         body  = "Your offline-first notebook. Every note, meeting, and document stays encrypted on your device — nothing ever leaves."
     ),
@@ -123,7 +119,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        when (val art = page.art) {
+        when (page.art) {
             is PageArt.LogoSplash -> {
                 Box(
                     modifier = Modifier
@@ -131,8 +127,8 @@ private fun OnboardingPageContent(page: OnboardingPage) {
                         .background(Color.Black, MaterialTheme.shapes.extraLarge),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(art.resId),
+                    AsyncImage(
+                        model = "file:///android_asset/logo.png",
                         contentDescription = "Founder Pocket logo",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit
@@ -141,7 +137,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
             }
             is PageArt.VectorIcon -> {
                 Icon(
-                    imageVector = art.icon,
+                    imageVector = page.art.icon,
                     contentDescription = null,
                     modifier = Modifier.size(96.dp),
                     tint = MaterialTheme.colorScheme.primary

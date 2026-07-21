@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="app/src/main/res/drawable/logo.png" width="180" alt="Founder Pocket logo" />
+  <img src="app/src/main/assets/logo.png" width="180" alt="Founder Pocket logo" />
 </p>
 
 <h1 align="center">Founder Pocket</h1>
