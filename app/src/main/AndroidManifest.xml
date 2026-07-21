@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
+    <!-- This app does not use advertising ID. Explicitly remove the permission
+         that Play Services may pull in transitively, satisfying the API 33 declaration. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"
+        tools:node="remove" />
+
     <application
         android:name=".FounderPocketApp"
         android:allowBackup="true"
